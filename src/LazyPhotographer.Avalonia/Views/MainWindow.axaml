@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:LazyPhotographer.Avalonia.Converters"
+        xmlns:vm="clr-namespace:LazyPhotographer.Avalonia.ViewModels"
+        xmlns:views="clr-namespace:LazyPhotographer.Avalonia.Views"
+        x:Class="LazyPhotographer.Avalonia.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title=""
+        Width="1380" Height="860"
+        MinWidth="1024" MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="PreferSystemChrome"
+        ExtendClientAreaTitleBarHeightHint="44"
+        Background="#141416">
+
+    <Window.Resources>
+        <converters:BoolToBrushConverter x:Key="ActiveTabBrushConverter" TrueBrush="#007ACC" FalseBrush="#2A2A2E" />
+        <converters:BoolToBrushConverter x:Key="ActiveTabTextConverter" TrueBrush="White" FalseBrush="#AAAAAA" />
+    </Window.Resources>
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="P" Command="{Binding FlagPhotoCommand}" />
+        <KeyBinding Gesture="X" Command="{Binding RejectPhotoCommand}" />
+        <KeyBinding Gesture="U" Command="{Binding UnflagPhotoCommand}" />
+        <KeyBinding Gesture="Left" Command="{Binding SelectPreviousPhotoCommand}" />
+        <KeyBinding Gesture="Right" Command="{Binding SelectNextPhotoCommand}" />
+    </Window.KeyBindings>
+
+    <Grid RowDefinitions="44, *, Auto">
+        <!-- Custom Window Title Bar with Integrated Tabs (No Software Name) -->
+        <Border Grid.Row="0"
+                Background="#1A1A1E"
+                BorderThickness="0,0,0,1"
+                BorderBrush="#28282D"
+                PointerPressed="OnTitleBarPointerPressed">
+            <!-- Right margin leaves room for native Windows Minimize/Maximize/Close caption buttons -->
+            <Grid ColumnDefinitions="Auto, *, Auto" Margin="12,0,148,0" VerticalAlignment="Center">
+                <!-- 3 Main Tabs in Title Bar -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button Content="1. Filtering"
+                            Command="{Binding SelectTabCommand}" CommandParameter="0"
+                            Background="{Binding IsTab1Selected, Converter={StaticResource ActiveTabBrushConverter}}"
+                            Foreground="{Binding IsTab1Selected, Converter={StaticResource ActiveTabTextConverter}}"
+                            Height="30" Padding="16,0" CornerRadius="5" FontSize="12" FontWeight="Bold" VerticalContentAlignment="Center"/>
+
+                    <Button Content="2. Adjustment"
+                            Command="{Binding SelectTabCommand}" CommandParameter="1"
+                            Background="{Binding IsTab2Selected, Converter={StaticResource ActiveTabBrushConverter}}"
+                            Foreground="{Binding IsTab2Selected, Converter={StaticResource ActiveTabTextConverter}}"
+                            Height="30" Padding="16,0" CornerRadius="5" FontSize="12" FontWeight="Bold" VerticalContentAlignment="Center"/>
+
+                    <Button Content="3. Quick Export"
+                            Command="{Binding SelectTabCommand}" CommandParameter="2"
+                            Background="{Binding IsTab3Selected, Converter={StaticResource ActiveTabBrushConverter}}"
+                            Foreground="{Binding IsTab3Selected, Converter={StaticResource ActiveTabTextConverter}}"
+                            Height="30" Padding="16,0" CornerRadius="5" FontSize="12" FontWeight="Bold" VerticalContentAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Draggable Empty Title Bar Space -->
+                <Border Grid.Column="1" Background="Transparent" />
+
+                <!-- Flagged Counter Badge in Title Bar -->
+                <Border Grid.Column="2" VerticalAlignment="Center" Background="#2D2816" Padding="10,4" CornerRadius="5">
+                    <TextBlock Text="{Binding FlaggedPhotosCountText}" Foreground="Gold" FontSize="11" FontWeight="Bold" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Dynamic Content Area -->
+        <Grid Grid.Row="1">
+            <!-- Tab 1: Filtering View -->
+            <views:FilteringView IsVisible="{Binding IsTab1Selected}" />
+
+            <!-- Tab 2: Adjustment View -->
+            <views:AdjustmentView IsVisible="{Binding IsTab2Selected}" />
+
+            <!-- Tab 3: Quick Export View -->
+            <views:ExportView IsVisible="{Binding IsTab3Selected}" />
+        </Grid>
+
+        <!-- Bottom Status Bar -->
+        <Border Grid.Row="2" Background="#18181A" Padding="16,6">
+            <Grid ColumnDefinitions="*, Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" Foreground="#888888" FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="Hotkeys: [P] Pick • [X] Reject • [U] Unflag • [←/→] Navigate • Double-click image for Loupe" Foreground="#666666" FontSize="11" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

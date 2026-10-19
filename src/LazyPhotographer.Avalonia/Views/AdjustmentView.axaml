@@ -1,0 +1,247 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:LazyPhotographer.Avalonia.Converters"
+             xmlns:models="clr-namespace:LazyPhotographer.Avalonia.Models"
+             xmlns:vm="clr-namespace:LazyPhotographer.Avalonia.ViewModels"
+             x:Class="LazyPhotographer.Avalonia.Views.AdjustmentView"
+             x:DataType="vm:MainViewModel">
+
+    <UserControl.Resources>
+        <converters:BoolToBrushConverter x:Key="SelectedBorderConverter" TrueBrush="#007ACC" FalseBrush="#2A2A2E" />
+        <converters:BoolToBrushConverter x:Key="BeforeAfterBrushConverter" TrueBrush="#E65100" FalseBrush="#2A2A2E" />
+        <converters:FormatFloatConverter x:Key="FloatFormatConverter" />
+    </UserControl.Resources>
+
+    <Grid ColumnDefinitions="*, 350">
+        <!-- Center Viewport & Bottom Filmstrip -->
+        <Grid Grid.Column="0" RowDefinitions="*, 130" Background="#101012">
+            <!-- Main Preview Display -->
+            <Grid Grid.Row="0" Margin="12">
+                <!-- Rendered Image -->
+                <Image Source="{Binding PreviewImageSource}"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+
+                <!-- Top Overlay Controls -->
+                <Border VerticalAlignment="Top" HorizontalAlignment="Stretch" Margin="12,6"
+                        Background="#AA1E1E22" Padding="12,8" CornerRadius="8">
+                    <Grid ColumnDefinitions="*, Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding SelectedPhoto.FileName}" Foreground="White" FontSize="14" FontWeight="Bold" />
+                            <TextBlock Text="•" Foreground="#555555" />
+                            <TextBlock Text="{Binding SelectedPhoto.CameraModel}" Foreground="#FFB300" FontSize="12" />
+                            <TextBlock Text="{Binding SelectedPhoto.ExposureInfo}" Foreground="#AAAAAA" FontSize="12" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button Content="✨ AI Auto-Tone"
+                                    Command="{Binding ApplyAiAutoToneCommand}"
+                                    Background="#2E3A4E" Foreground="#4FC3F7" Height="32" Padding="12,0" CornerRadius="6" FontSize="12" VerticalContentAlignment="Center"/>
+                            <Button Content="{Binding BeforeAfterButtonText}"
+                                    Command="{Binding ToggleBeforeAfterCommand}"
+                                    Background="{Binding ShowBeforeAfter, Converter={StaticResource BeforeAfterBrushConverter}}"
+                                    Foreground="#D4D4D4" Height="32" Padding="12,0" CornerRadius="6" FontSize="12" VerticalContentAlignment="Center"/>
+                            <Button Content="↺ Reset"
+                                    Command="{Binding ResetAdjustmentsCommand}"
+                                    Background="#2A2A2E" Foreground="#AAAAAA" Height="32" Padding="10,0" CornerRadius="6" FontSize="12" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Bottom Filmstrip for Fast Switching -->
+            <Border Grid.Row="1" Background="#18181B" Padding="8,6">
+                <Grid RowDefinitions="Auto, *">
+                    <TextBlock Grid.Row="0" Text="Thumbnails of current selection (click to switch photo):" Foreground="#777777" FontSize="11" Margin="4,0,0,4"/>
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding FilteredPhotos}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:PhotoItem">
+                                    <Button Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).SelectPhotoCommand}"
+                                            CommandParameter="{Binding .}"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="0">
+                                        <Border Width="100"
+                                                Height="90"
+                                                BorderThickness="2"
+                                                BorderBrush="{Binding IsSelected, Converter={StaticResource SelectedBorderConverter}}"
+                                                CornerRadius="6"
+                                                Background="#101012"
+                                                Padding="2">
+                                            <Panel>
+                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                                <Border VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Background="#CC000000" Padding="2,1">
+                                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontSize="9" TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+                                                </Border>
+                                            </Panel>
+                                        </Border>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Right Side: Processing Adjustment Panel -->
+        <Border Grid.Column="1" Background="#1C1C1F" BorderThickness="1,0,0,0" BorderBrush="#2D2D30">
+            <ScrollViewer Padding="16,12">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="DEVELOP &amp; ADJUST" Foreground="#FFB300" FontSize="13" FontWeight="Bold" />
+
+                    <!-- Section: AI Tools -->
+                    <Border Background="#22232A" CornerRadius="8" BorderThickness="1" BorderBrush="#313444" Padding="12">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="AI NEURAL PROCESSING" Foreground="#4FC3F7" FontSize="12" FontWeight="Bold" />
+
+                            <Button Content="🪄 Apply AI Auto-Tone &amp; Color"
+                                    Command="{Binding ApplyAiAutoToneCommand}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    Background="#007ACC" Foreground="White" Height="36" CornerRadius="6" FontSize="12" FontWeight="Bold"/>
+
+                            <!-- AI Denoise -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="AI Denoise Strength" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.AiDenoiseStrength, Converter={StaticResource FloatFormatConverter}, ConverterParameter='P0'}" Foreground="#4FC3F7" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="0.0" Maximum="1.0"
+                                        Value="{Binding SelectedPhoto.Adjustments.AiDenoiseStrength}" />
+                            </StackPanel>
+
+                            <!-- AI Detail Enhance -->
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBlock Grid.Column="0" Text="AI Micro-Detail Texture" Foreground="#D4D4D4" FontSize="12" VerticalAlignment="Center"/>
+                                <ToggleSwitch Grid.Column="1" IsChecked="{Binding SelectedPhoto.Adjustments.EnableAiDetailEnhance}" OnContent="On" OffContent="Off" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section: Light & Exposure -->
+                    <Border Background="#232326" CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="LIGHT &amp; EXPOSURE" Foreground="#AAAAAA" FontSize="12" FontWeight="Bold" />
+
+                            <!-- Exposure -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Exposure (EV)" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Exposure, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F2'}" Foreground="#FFB300" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-5.0" Maximum="5.0"
+                                        Value="{Binding SelectedPhoto.Adjustments.Exposure}" />
+                            </StackPanel>
+
+                            <!-- Contrast -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Contrast" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Contrast, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Contrast}" />
+                            </StackPanel>
+
+                            <!-- Highlights -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Highlights" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Highlights, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Highlights}" />
+                            </StackPanel>
+
+                            <!-- Shadows -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Shadows" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Shadows, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Shadows}" />
+                            </StackPanel>
+
+                            <!-- Whites -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Whites" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Whites, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Whites}" />
+                            </StackPanel>
+
+                            <!-- Blacks -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Blacks" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Blacks, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Blacks}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section: Color Balance -->
+                    <Border Background="#232326" CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="COLOR &amp; WHITE BALANCE" Foreground="#AAAAAA" FontSize="12" FontWeight="Bold" />
+
+                            <!-- Temperature -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Temperature (Cool ↔ Warm)" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Temperature, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Temperature}" />
+                            </StackPanel>
+
+                            <!-- Tint -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Tint (Green ↔ Magenta)" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Tint, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Tint}" />
+                            </StackPanel>
+
+                            <!-- Vibrance -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Vibrance" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Vibrance, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Vibrance}" />
+                            </StackPanel>
+
+                            <!-- Saturation -->
+                            <StackPanel Spacing="2">
+                                <Grid ColumnDefinitions="*, Auto">
+                                    <TextBlock Grid.Column="0" Text="Saturation" Foreground="#D4D4D4" FontSize="12"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPhoto.Adjustments.Saturation, Converter={StaticResource FloatFormatConverter}, ConverterParameter='F0'}" Foreground="#AAAAAA" FontSize="12"/>
+                                </Grid>
+                                <Slider Minimum="-100" Maximum="100"
+                                        Value="{Binding SelectedPhoto.Adjustments.Saturation}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>
