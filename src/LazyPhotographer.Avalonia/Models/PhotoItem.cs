@@ -8,11 +8,18 @@ namespace LazyPhotographer.Avalonia.Models
     public class PhotoItem : PhotoItemBase
     {
         private Bitmap? _thumbnail;
+        private Bitmap? _highResImage;
 
         public Bitmap? Thumbnail
         {
             get => _thumbnail;
             set => SetField(ref _thumbnail, value);
+        }
+
+        public Bitmap? HighResImage
+        {
+            get => _highResImage;
+            set => SetField(ref _highResImage, value);
         }
 
         public IBrush FlagColor => Flag switch

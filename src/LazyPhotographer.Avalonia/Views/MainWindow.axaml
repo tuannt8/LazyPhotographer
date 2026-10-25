@@ -55,6 +55,12 @@
                             Background="{Binding IsTab3Selected, Converter={StaticResource ActiveTabBrushConverter}}"
                             Foreground="{Binding IsTab3Selected, Converter={StaticResource ActiveTabTextConverter}}"
                             Height="30" Padding="16,0" CornerRadius="5" FontSize="12" FontWeight="Bold" VerticalContentAlignment="Center"/>
+
+                    <Button Content="4. Settings"
+                            Command="{Binding SelectTabCommand}" CommandParameter="3"
+                            Background="{Binding IsTab4Selected, Converter={StaticResource ActiveTabBrushConverter}}"
+                            Foreground="{Binding IsTab4Selected, Converter={StaticResource ActiveTabTextConverter}}"
+                            Height="30" Padding="16,0" CornerRadius="5" FontSize="12" FontWeight="Bold" VerticalContentAlignment="Center"/>
                 </StackPanel>
 
                 <!-- Draggable Empty Title Bar Space -->
@@ -77,6 +83,9 @@
 
             <!-- Tab 3: Quick Export View -->
             <views:ExportView IsVisible="{Binding IsTab3Selected}" />
+
+            <!-- Tab 4: Settings View -->
+            <views:SettingsView IsVisible="{Binding IsTab4Selected}" />
         </Grid>
 
         <!-- Bottom Status Bar -->

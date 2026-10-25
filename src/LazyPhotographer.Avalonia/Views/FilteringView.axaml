@@ -3,11 +3,13 @@
              xmlns:converters="clr-namespace:LazyPhotographer.Avalonia.Converters"
              xmlns:models="clr-namespace:LazyPhotographer.Avalonia.Models"
              xmlns:vm="clr-namespace:LazyPhotographer.Avalonia.ViewModels"
+             xmlns:controls="clr-namespace:LazyPhotographer.Avalonia.Controls"
              x:Class="LazyPhotographer.Avalonia.Views.FilteringView"
              x:DataType="vm:MainViewModel">
 
     <UserControl.Resources>
         <converters:BoolToBrushConverter x:Key="SelectedBorderConverter" TrueBrush="#007ACC" FalseBrush="#2A2A2E" />
+        <converters:BoolToBrushConverter x:Key="HighResStatusConverter" TrueBrush="#00E5FF" FalseBrush="#FFB300" />
     </UserControl.Resources>
 
     <Grid RowDefinitions="Auto, *">
@@ -60,68 +62,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="models:PhotoItem">
-                            <Border Width="270"
-                                    Margin="6"
-                                    BorderThickness="2"
-                                    BorderBrush="{Binding IsSelected, Converter={StaticResource SelectedBorderConverter}}"
-                                    Background="#1E1E22"
-                                    CornerRadius="8"
-                                    Padding="8">
-                                <Grid RowDefinitions="175, Auto, Auto">
-                                    <!-- Image Thumbnail (Single-click selects, Double-click switches to Loupe mode) -->
-                                    <Border Grid.Row="0"
-                                            Background="#111114"
-                                            CornerRadius="4"
-                                            ClipToBounds="True"
-                                            Cursor="Hand"
-                                            PointerPressed="OnPhotoThumbnailPointerPressed"
-                                            DoubleTapped="OnPhotoThumbnailDoubleTapped">
-                                        <Panel>
-                                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" Height="175" />
-                                            <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="6"
-                                                    Background="#AA000000" Padding="6,2" CornerRadius="4">
-                                                <TextBlock Text="{Binding FileExtension}" Foreground="#FFB300" FontSize="11" FontWeight="Bold" />
-                                            </Border>
-                                            <Border VerticalAlignment="Top" HorizontalAlignment="Right" Margin="6"
-                                                    Background="#AA000000" Padding="6,2" CornerRadius="4">
-                                                <TextBlock Text="{Binding FlagIcon}" Foreground="{Binding FlagColor}" FontSize="11" FontWeight="Bold" />
-                                            </Border>
-                                        </Panel>
-                                    </Border>
-
-                                    <!-- Details Row -->
-                                    <StackPanel Grid.Row="1" Margin="4,8,4,4" Spacing="2"
-                                                Cursor="Hand"
-                                                PointerPressed="OnPhotoThumbnailPointerPressed"
-                                                DoubleTapped="OnPhotoThumbnailDoubleTapped">
-                                        <TextBlock Text="{Binding FileName}" Foreground="White" FontSize="13" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding CameraModel}" Foreground="#888888" FontSize="11" />
-                                        <TextBlock Text="{Binding ExposureInfo}" Foreground="#666666" FontSize="11" />
-                                    </StackPanel>
-
-                                    <!-- Quick Flagging Action Bar -->
-                                    <Grid Grid.Row="2" ColumnDefinitions="*, *, *" Margin="0,4,0,0">
-                                        <Button Grid.Column="0" Content="★ Pick (P)"
-                                                Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).FlagPhotoCommand}"
-                                                CommandParameter="{Binding .}"
-                                                HorizontalAlignment="Stretch"
-                                                Margin="0,0,2,0"
-                                                Background="#2E2818" Foreground="Gold" Height="28" FontSize="11" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" CornerRadius="4"/>
-                                        <Button Grid.Column="1" Content="✕ Reject (X)"
-                                                Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).RejectPhotoCommand}"
-                                                CommandParameter="{Binding .}"
-                                                HorizontalAlignment="Stretch"
-                                                Margin="2,0,2,0"
-                                                Background="#2D1A1A" Foreground="#FF6B6B" Height="28" FontSize="11" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" CornerRadius="4"/>
-                                        <Button Grid.Column="2" Content="○ Clear (U)"
-                                                Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).UnflagPhotoCommand}"
-                                                CommandParameter="{Binding .}"
-                                                HorizontalAlignment="Stretch"
-                                                Margin="2,0,0,0"
-                                                Background="#252528" Foreground="#888888" Height="28" FontSize="11" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" CornerRadius="4"/>
-                                    </Grid>
-                                </Grid>
-                            </Border>
+                            <controls:FastThumbnailControl Margin="6" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -129,9 +70,20 @@
 
             <!-- 2. Loupe + Filmstrip Mode -->
             <Grid RowDefinitions="*, 140" IsVisible="{Binding IsLoupeView}">
-                <!-- Main Loupe Preview -->
+                <!-- Main Loupe Preview (Progressive: Low-Res first, High-Res when available) -->
                 <Grid Grid.Row="0" Background="#121214" Margin="12">
-                    <Image Source="{Binding SelectedPhoto.Thumbnail}" Stretch="Uniform" />
+                    <Image Source="{Binding LoupeImage}" Stretch="Uniform" />
+
+                    <!-- HD Quality Status Badge (Top-Right) -->
+                    <Border VerticalAlignment="Top" HorizontalAlignment="Right" Margin="16"
+                            Background="#D018181B" Padding="10,6" CornerRadius="6"
+                            BorderBrush="#383842" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Border Width="8" Height="8" CornerRadius="4"
+                                    Background="{Binding IsHighResLoaded, Converter={StaticResource HighResStatusConverter}}" />
+                            <TextBlock Text="{Binding LoupeResolutionText}" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Photo Info Overlay -->
                     <Border VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="16"

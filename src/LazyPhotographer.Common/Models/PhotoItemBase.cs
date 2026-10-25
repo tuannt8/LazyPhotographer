@@ -15,6 +15,10 @@ namespace LazyPhotographer.Models
         private string _exposureInfo = "1/250s f/2.8 ISO 160";
         private uint _width;
         private uint _height;
+        private int _orientationDegrees;
+        private int _orientationTag = 1;
+        private bool _isThumbnailLoading;
+        private bool _isMetadataLoaded;
 
         public string FilePath
         {
@@ -123,6 +127,30 @@ namespace LazyPhotographer.Models
         }
 
         public string ResolutionText => _width > 0 && _height > 0 ? $"{_width} × {_height}" : "RAW Sensor";
+
+        public int OrientationDegrees
+        {
+            get => _orientationDegrees;
+            set => SetField(ref _orientationDegrees, value);
+        }
+
+        public int OrientationTag
+        {
+            get => _orientationTag;
+            set => SetField(ref _orientationTag, value);
+        }
+
+        public bool IsThumbnailLoading
+        {
+            get => _isThumbnailLoading;
+            set => SetField(ref _isThumbnailLoading, value);
+        }
+
+        public bool IsMetadataLoaded
+        {
+            get => _isMetadataLoaded;
+            set => SetField(ref _isMetadataLoaded, value);
+        }
 
         public ImageAdjustmentsModel Adjustments { get; set; } = new ImageAdjustmentsModel();
 

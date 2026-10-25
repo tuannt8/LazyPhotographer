@@ -5,8 +5,12 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using LazyPhotographer.Common.Metadata;
+using LazyPhotographer.Common.Models;
+using LazyPhotographer.Common.Services;
 using LazyPhotographer.Interop;
 using LazyPhotographer.Models;
 
@@ -21,6 +25,7 @@ namespace LazyPhotographer.ViewModels
         private TPhotoItem? _selectedPhoto;
         private bool _isLoading;
         private string _statusMessage = "Ready";
+        private CancellationTokenSource? _folderLoadingCts;
 
         // Tab 1 state
         private ViewMode _filterViewMode = ViewMode.Grid;
@@ -55,6 +60,7 @@ namespace LazyPhotographer.ViewModels
                     OnPropertyChanged(nameof(IsTab1Selected));
                     OnPropertyChanged(nameof(IsTab2Selected));
                     OnPropertyChanged(nameof(IsTab3Selected));
+                    OnPropertyChanged(nameof(IsTab4Selected));
 
                     if (_selectedTabIndex == 1 && SelectedPhoto != null)
                     {
@@ -64,6 +70,10 @@ namespace LazyPhotographer.ViewModels
                     {
                         UpdateFlaggedPhotosList();
                     }
+                    else if (_selectedTabIndex == 3)
+                    {
+                        RefreshCacheStats();
+                    }
                 }
             }
         }
@@ -71,6 +81,7 @@ namespace LazyPhotographer.ViewModels
         public bool IsTab1Selected => _selectedTabIndex == 0;
         public bool IsTab2Selected => _selectedTabIndex == 1;
         public bool IsTab3Selected => _selectedTabIndex == 2;
+        public bool IsTab4Selected => _selectedTabIndex == 3;
 
         public string CurrentDirectory
         {
@@ -83,6 +94,7 @@ namespace LazyPhotographer.ViewModels
             get => _selectedPhoto;
             set
             {
+                var old = _selectedPhoto;
                 if (SetField(ref _selectedPhoto, value))
                 {
                     foreach (var p in Photos)
@@ -90,12 +102,18 @@ namespace LazyPhotographer.ViewModels
                         p.IsSelected = (p == value);
                     }
 
+                    OnSelectedPhotoChanged(old, value);
+
                     if (value != null && IsTab2Selected)
                     {
                         _ = LoadAndRenderSelectedPhotoAsync();
                     }
                 }
             }
+        }
+
+        protected virtual void OnSelectedPhotoChanged(TPhotoItem? oldPhoto, TPhotoItem? newPhoto)
+        {
         }
 
         public bool IsLoading
@@ -200,12 +218,91 @@ namespace LazyPhotographer.ViewModels
             set => SetField(ref _exportStatus, value);
         }
 
+        // Loupe Mode Progressive Display State
+        private TImageSource? _loupeImage;
+        private bool _isHighResLoaded;
+        private string _loupeResolutionText = string.Empty;
+
+        public TImageSource? LoupeImage
+        {
+            get => _loupeImage;
+            set => SetField(ref _loupeImage, value);
+        }
+
+        public bool IsHighResLoaded
+        {
+            get => _isHighResLoaded;
+            set => SetField(ref _isHighResLoaded, value);
+        }
+
+        public string LoupeResolutionText
+        {
+            get => _loupeResolutionText;
+            set => SetField(ref _loupeResolutionText, value);
+        }
+
+        // Tab 4 (Settings) State & Persistent Config
+        private int _thumbnailCacheSizeSetting = SettingsService.Current.ThumbnailCacheCapacity;
+        private int _highResCacheSizeSetting = SettingsService.Current.HighResCacheCapacity;
+        private int _highResMaxDimensionSetting = SettingsService.Current.HighResMaxDimension;
+        private string _cacheStatsText = string.Empty;
+        private string _settingsFeedback = string.Empty;
+
+        public int ThumbnailCacheSizeSetting
+        {
+            get => _thumbnailCacheSizeSetting;
+            set
+            {
+                if (SetField(ref _thumbnailCacheSizeSetting, value))
+                {
+                    SaveCurrentSettings();
+                }
+            }
+        }
+
+        public int HighResCacheSizeSetting
+        {
+            get => _highResCacheSizeSetting;
+            set
+            {
+                if (SetField(ref _highResCacheSizeSetting, value))
+                {
+                    SaveCurrentSettings();
+                }
+            }
+        }
+
+        public int HighResMaxDimensionSetting
+        {
+            get => _highResMaxDimensionSetting;
+            set
+            {
+                if (SetField(ref _highResMaxDimensionSetting, value))
+                {
+                    SaveCurrentSettings();
+                }
+            }
+        }
+
+        public string CacheStatsText
+        {
+            get => _cacheStatsText;
+            set => SetField(ref _cacheStatsText, value);
+        }
+
+        public string SettingsFeedback
+        {
+            get => _settingsFeedback;
+            set => SetField(ref _settingsFeedback, value);
+        }
+
         // Commands
         public ICommand SelectTabCommand { get; }
         public ICommand OpenFolderCommand { get; }
         public ICommand CreateSampleRafFilesCommand { get; }
         public ICommand ToggleViewModeCommand { get; }
         public ICommand SetFilterCommand { get; }
+        public ICommand TogglePickPhotoCommand { get; }
         public ICommand FlagPhotoCommand { get; }
         public ICommand RejectPhotoCommand { get; }
         public ICommand UnflagPhotoCommand { get; }
@@ -220,6 +317,8 @@ namespace LazyPhotographer.ViewModels
         public ICommand BrowseExportFolderCommand { get; }
         public ICommand StartExportCommand { get; }
         public ICommand OpenExportFolderCommand { get; }
+        public ICommand ClearCacheCommand { get; }
+        public ICommand ResetSettingsCommand { get; }
 
         protected MainViewModelBase()
         {
@@ -228,6 +327,7 @@ namespace LazyPhotographer.ViewModels
             CreateSampleRafFilesCommand = new RelayCommand(async () => await OnCreateSampleRafFilesAsync());
             ToggleViewModeCommand = new RelayCommand(OnToggleViewMode);
             SetFilterCommand = new RelayCommand<string>(OnSetFilter);
+            TogglePickPhotoCommand = new RelayCommand<TPhotoItem>(TogglePickPhoto);
             FlagPhotoCommand = new RelayCommand<TPhotoItem>(OnFlagPhoto);
             RejectPhotoCommand = new RelayCommand<TPhotoItem>(OnRejectPhoto);
             UnflagPhotoCommand = new RelayCommand<TPhotoItem>(OnUnflagPhoto);
@@ -245,6 +345,8 @@ namespace LazyPhotographer.ViewModels
             BrowseExportFolderCommand = new RelayCommand(async () => await OnBrowseExportFolderAsync());
             StartExportCommand = new RelayCommand(async () => await OnStartExportAsync());
             OpenExportFolderCommand = new RelayCommand(OnOpenExportFolder);
+            ClearCacheCommand = new RelayCommand(ClearAllCaches);
+            ResetSettingsCommand = new RelayCommand(ResetSettingsToDefaults);
 
             foreach (var preset in ExportPresetModel.GetDefaultPresets())
             {
@@ -332,81 +434,129 @@ namespace LazyPhotographer.ViewModels
             }
         }
 
+        public bool MatchesFilter(TPhotoItem photo)
+        {
+            return FilterSelectionMode switch
+            {
+                FilterSelection.FlaggedOnly => photo.Flag == FlagStatus.Flagged,
+                FilterSelection.UnflaggedOnly => photo.Flag == FlagStatus.Unflagged,
+                FilterSelection.RejectedOnly => photo.Flag == FlagStatus.Rejected,
+                _ => true
+            };
+        }
+
         public async Task LoadFolderPhotosAsync(string folderPath)
         {
             if (!Directory.Exists(folderPath)) return;
 
+            _folderLoadingCts?.Cancel();
+            _folderLoadingCts?.Dispose();
+            var cts = new CancellationTokenSource();
+            _folderLoadingCts = cts;
+            var ct = cts.Token;
+
             IsLoading = true;
             CurrentDirectory = folderPath;
-            StatusMessage = $"Scanning folder {folderPath}...";
+            StatusMessage = $"Finding files in {Path.GetFileName(folderPath)}...";
 
-            await Task.Run(() =>
+            await Task.Run(async () =>
             {
-                var files = Directory.GetFiles(folderPath, "*.*", SearchOption.TopDirectoryOnly)
-                    .Where(f =>
-                    {
-                        string ext = Path.GetExtension(f).ToLowerInvariant();
-                        return ext == ".raf" || ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".tif" || ext == ".tiff";
-                    })
-                    .OrderBy(f => f)
-                    .ToList();
-
-                var newPhotos = new List<TPhotoItem>();
-
-                using var bridge = new NativeImageBridge();
-
-                foreach (var file in files)
+                try
                 {
-                    byte[]? previewBytes = NativeImageBridge.ExtractEmbeddedPreview(file, out uint pW, out uint pH);
-                    string camModel = "FUJIFILM";
-                    string expInfo = "1/250s f/2.8 ISO 160";
-                    uint width = pW;
-                    uint height = pH;
-
-                    if (bridge.LoadRaw(file, out var rawInfo, true))
-                    {
-                        camModel = string.IsNullOrWhiteSpace(rawInfo.CameraModel) ? "FUJIFILM" : rawInfo.CameraModel;
-                        expInfo = $"{rawInfo.ExposureTimeString} f/{rawInfo.FNumber:F1} ISO {rawInfo.Iso}";
-                        if (rawInfo.Width > 0) width = rawInfo.Width;
-                        if (rawInfo.Height > 0) height = rawInfo.Height;
-
-                        if (previewBytes == null || previewBytes.Length == 0)
+                    // 1. FAST FILE DISCOVERY: Find all files and file count first
+                    var files = Directory.GetFiles(folderPath, "*.*", SearchOption.TopDirectoryOnly)
+                        .Where(f =>
                         {
-                            previewBytes = bridge.RenderPreviewBmpBytes(new ImageAdjustmentsModel().ToNative(), 360, 240);
-                        }
+                            string ext = Path.GetExtension(f).ToLowerInvariant();
+                            return ext == ".raf" || ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".tif" || ext == ".tiff";
+                        })
+                        .OrderBy(f => f)
+                        .ToList();
+
+                    if (ct.IsCancellationRequested) return;
+
+                    int total = files.Count;
+
+                    // 2. CREATE ALL PLACEHOLDER ITEMS IMMEDIATELY
+                    var placeholders = new List<TPhotoItem>(total);
+                    foreach (var file in files)
+                    {
+                        var item = CreatePhotoItem(file, null);
+                        item.Flag = FlagStatus.Unflagged;
+                        item.CameraModel = "FUJIFILM";
+                        item.ExposureInfo = "Loading...";
+                        item.IsMetadataLoaded = false;
+
+                        item.Adjustments.PropertyChanged += (s, e) =>
+                        {
+                            if (SelectedPhoto == item && IsTab2Selected)
+                            {
+                                _ = RenderCurrentAdjustmentsAsync();
+                            }
+                        };
+
+                        placeholders.Add(item);
                     }
 
-                    var item = CreatePhotoItem(file, previewBytes);
-                    item.Flag = FlagStatus.Unflagged;
-                    item.CameraModel = camModel;
-                    item.ExposureInfo = expInfo;
-                    item.Width = width;
-                    item.Height = height;
-
-                    item.Adjustments.PropertyChanged += (s, e) =>
+                    // Populate GUI with placeholders immediately so scrolling & viewing starts with zero lag
+                    RunOnUiThread(() =>
                     {
-                        if (SelectedPhoto == item && IsTab2Selected)
-                        {
-                            _ = RenderCurrentAdjustmentsAsync();
-                        }
-                    };
+                        if (ct.IsCancellationRequested) return;
 
-                    newPhotos.Add(item);
+                        Photos.Clear();
+                        FilteredPhotos.Clear();
+
+                        foreach (var p in placeholders)
+                        {
+                            Photos.Add(p);
+                            if (MatchesFilter(p))
+                            {
+                                FilteredPhotos.Add(p);
+                            }
+                        }
+
+                        SelectedPhoto = FilteredPhotos.FirstOrDefault() ?? Photos.FirstOrDefault();
+                        IsLoading = false;
+                        StatusMessage = $"Found {total} photos. Ready.";
+                    });
+
+                    // 3. READ METADATA PROGRESSIVELY IN BACKGROUND WITHOUT BLOCKING GUI
+                    await Task.Delay(40, ct); // Yield to let UI render the initial view
+
+                    int processed = 0;
+                    foreach (var item in placeholders)
+                    {
+                        if (ct.IsCancellationRequested) return;
+
+                        var meta = FastMetadataReader.ReadMetadata(item.FilePath);
+                        item.CameraModel = meta.CameraModel;
+                        item.ExposureInfo = meta.ExposureInfo;
+                        item.Width = meta.Width;
+                        item.Height = meta.Height;
+                        item.OrientationDegrees = meta.OrientationDegrees;
+                        item.OrientationTag = meta.OrientationTag;
+                        item.IsMetadataLoaded = true;
+
+                        processed++;
+                        if (processed % 20 == 0)
+                        {
+                            await Task.Delay(10, ct); // Yield CPU to keep GUI and render thread completely responsive
+                        }
+                    }
                 }
-
-                RunOnUiThread(() =>
+                catch (OperationCanceledException)
                 {
-                    Photos.Clear();
-                    foreach (var p in newPhotos)
+                    // Operation was cancelled
+                }
+                catch (Exception ex)
+                {
+                    RunOnUiThread(() =>
                     {
-                        Photos.Add(p);
-                    }
-                    ApplyFilter();
-                    SelectedPhoto = FilteredPhotos.FirstOrDefault() ?? Photos.FirstOrDefault();
-                    IsLoading = false;
-                    StatusMessage = $"Loaded {Photos.Count} images from {Path.GetFileName(folderPath)}";
-                });
-            });
+                        IsLoading = false;
+                        StatusMessage = $"Folder error: {ex.Message}";
+                    });
+                }
+            }, ct);
         }
 
         private async Task OnOpenFolderAsync()
@@ -507,6 +657,23 @@ namespace LazyPhotographer.ViewModels
         }
 
         public string FlaggedPhotosCountText => $"{FlaggedPhotos.Count} Flagged of {Photos.Count} Photos";
+
+        public void TogglePickPhoto(TPhotoItem? photo)
+        {
+            photo ??= SelectedPhoto;
+            if (photo != null)
+            {
+                photo.Flag = photo.IsFlagged ? FlagStatus.Unflagged : FlagStatus.Flagged;
+                UpdateFlaggedPhotosList();
+                if (FilterSelectionMode != FilterSelection.All)
+                {
+                    ApplyFilter();
+                }
+                StatusMessage = photo.IsFlagged
+                    ? $"Flagged (Picked): {photo.FileName}"
+                    : $"Unflagged: {photo.FileName}";
+            }
+        }
 
         private void OnFlagPhoto(TPhotoItem? photo)
         {
@@ -720,6 +887,35 @@ namespace LazyPhotographer.ViewModels
                     StatusMessage = ExportStatus;
                 });
             });
+        }
+
+        public virtual void RefreshCacheStats()
+        {
+        }
+
+        public virtual void ClearAllCaches()
+        {
+        }
+
+        public void ResetSettingsToDefaults()
+        {
+            ThumbnailCacheSizeSetting = 200;
+            HighResCacheSizeSetting = 20;
+            HighResMaxDimensionSetting = 2560;
+            SettingsFeedback = "✓ Reset to Defaults";
+        }
+
+        protected void SaveCurrentSettings()
+        {
+            var s = new AppSettings
+            {
+                ThumbnailCacheCapacity = _thumbnailCacheSizeSetting,
+                HighResCacheCapacity = _highResCacheSizeSetting,
+                HighResMaxDimension = _highResMaxDimensionSetting
+            };
+            SettingsService.Save(s);
+            SettingsFeedback = "✓ Saved & Remembered";
+            RefreshCacheStats();
         }
 
         private void OnOpenExportFolder()
